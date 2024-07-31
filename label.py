@@ -9,16 +9,19 @@ from reportlab.pdfbase import pdfmetrics
 class InvoiceApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Invoice Generator")
+        self.root.title("Label Generator")
         
         # Invoice details
         self.details_frame = tk.Frame(root)
         self.details_frame.pack(padx=10, pady=10)
 
-        self.customer_entry = self.create_entry("Customer Name:", 0)
-        self.product_entry = self.create_entry("Product:", 1)
-        self.quantity_entry = self.create_entry("Quantity:", 2)
-        self.price_entry = self.create_entry("Price per Unit:", 3)
+        self.airwaybillno_entry = self.create_entry("Airway Bill No:", 0)
+        self.destination_entry = self.create_entry("Destination:", 1)
+        self.noofpieces_entry = self.create_entry("No.of Pieces:", 2)
+        self.weight_entry = self.create_entry("Weight:", 3)
+        self.hawbno_entry = self.create_entry("HAWB No:", 4)
+        self.productcode_entry = self.create_entry("Product Code:", 5)
+        self.origin_entry = self.create_entry("Origin:", 6)
         
         # Print button
         self.print_button = tk.Button(root, text="Generate PDF Invoice", command=self.generate_pdf_invoice)
@@ -38,9 +41,9 @@ class InvoiceApp:
         
     def generate_pdf_invoice(self):
         # Retrieve data
-        customer_name = self.customer_entry.get()
-        product = self.product_entry.get()
-        quantity = self.quantity_entry.get()
+        airwaybillno = self.airwaybillno_entry.get()
+        destination = self.destination_entry.get()
+        noofpieces = self.noofpieces_entry.get()
         price_per_unit = self.price_entry.get()
 
         # Calculate total
