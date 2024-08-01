@@ -40,43 +40,42 @@ class InvoiceApp:
         return entry
         
     def generate_pdf_invoice(self):
-        # Retrieve data
-        airwaybillno = self.airwaybillno_entry.get()
-        destination = self.destination_entry.get()
-        noofpieces = self.noofpieces_entry.get()
-        price_per_unit = self.price_entry.get()
-
-        # Calculate total
         try:
-            quantity = int(quantity)
-            price_per_unit = float(price_per_unit)
-            total = quantity * price_per_unit
-        except ValueError:
-            messagebox.showerror("Input Error", "Please enter valid numerical values for Quantity and Price per Unit.")
-            return
+            # Retrieve data
+            airwaybillno = self.airwaybillno_entry.get()
+            destination = self.destination_entry.get()
+            noofpieces = self.noofpieces_entry.get()
+            weight = float(self.weight_entry.get())
+            hawbno = self.hawbno_entry.get()
+            productcode = self.productcode_entry.get()
+            origin = self.origin_entry.get()
+
+            # Generate label text
+            invoice_text = (
+                f"Invoice\n"
+                f"Airway Bill No: {airwaybillno}\n"
+                f"Destination: {destination}\n"
+                f"No.of Pieces: {noofpieces}\n"
+                f"Weight: {weight:.2f}\n"
+                f"HAWB No: {hawbno}\n"
+                f"Product Code: {productcode}\n"
+                f"Origin: {origin}\n"
+            )
+
+            # Display invoice in the text widget
+            self.invoice_text.delete('1.0', tk.END)
+            self.invoice_text.insert(tk.END, invoice_text)
+
+            # Generate PDF
+            pdf_filename = "invoice.pdf"
+            self.create_pdf_invoice(airwaybillno, destination, noofpieces, weight, hawbno, productcode, origin, pdf_filename)
+
+            messagebox.showinfo("Success", f"Invoice generated and saved as {pdf_filename}")
+        except ValueError as e:
+            messagebox.showerror("Error", f"Invalid input: {e}")
         
-        # Generate invoice text
-        invoice_text = (
-            f"Invoice\n"
-            f"Customer Name: {customer_name}\n"
-            f"Product: {product}\n"
-            f"Quantity: {quantity}\n"
-            f"Price per Unit: ${price_per_unit:.2f}\n"
-            f"Total: ${total:.2f}\n"
-        )
-
-        # Display invoice in the text widget
-        self.invoice_text.delete('1.0', tk.END)
-        self.invoice_text.insert(tk.END, invoice_text)
-
-        # Generate PDF
-        pdf_filename = "invoice.pdf"
-        self.create_pdf_invoice(customer_name, product, quantity, price_per_unit, total, pdf_filename)
-
-        messagebox.showinfo("Success", f"Invoice generated and saved as {pdf_filename}")
-        
-    def create_pdf_invoice(self, customer_name, product, quantity, price_per_unit, total, filename):
-        # Register the custom font
+    def create_pdf_invoice(self, airwaybillno, destination, noofpieces, weight, hawbno, productcode, origin, filename):
+        # Register the custom font if needed (Ensure you have the font file)
         pdfmetrics.registerFont(TTFont('CustomFont', 'IDAutomationHC39M.ttf'))
 
         c = canvas.Canvas(filename, pagesize=letter)
@@ -88,15 +87,15 @@ class InvoiceApp:
         c.drawString(100, height - 100, "Invoice")
 
         # Set font and color for the body text
-        c.setFont("CustomFont", 12)
-        c.setFillColor(colors.black)
-        c.drawString(100, height - 150, f"Customer Name: {customer_name}")
         c.setFont("Helvetica", 12)
         c.setFillColor(colors.black)
-        c.drawString(100, height - 200, f"Product: {product}")
-        c.drawString(100, height - 250, f"Quantity: {quantity}")
-        c.drawString(100, height - 300, f"Price per Unit: ${price_per_unit:.2f}")
-        c.drawString(100, height - 350, f"Total: ${total:.2f}")
+        c.drawString(100, height - 150, f"Airway Bill No: {airwaybillno}")
+        c.drawString(100, height - 200, f"Destination: {destination}")
+        c.drawString(100, height - 250, f"No. of Pieces: {noofpieces}")
+        c.drawString(100, height - 300, f"Weight: {weight:.2f}")
+        c.drawString(100, height - 350, f"HAWB No: {hawbno}")
+        c.drawString(100, height - 400, f"Product Code: {productcode}")
+        c.drawString(100, height - 450, f"Origin: {origin}")
 
         c.save()
 
