@@ -2,34 +2,36 @@ import tkinter as tk
 from tkinter import messagebox
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
+from reportlab.lib.units import inch
 from reportlab.lib import colors
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfbase import pdfmetrics
 
-class InvoiceApp:
+class LabelGeneratorApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Label Generator")
         
-        # Invoice details
+        # label details
         self.details_frame = tk.Frame(root)
         self.details_frame.pack(padx=10, pady=10)
 
         self.airwaybillno_entry = self.create_entry("Airway Bill No:", 0)
         self.destination_entry = self.create_entry("Destination:", 1)
-        self.noofpieces_entry = self.create_entry("No.of Pieces:", 2)
-        self.weight_entry = self.create_entry("Weight:", 3)
-        self.hawbno_entry = self.create_entry("HAWB No:", 4)
-        self.productcode_entry = self.create_entry("Product Code:", 5)
-        self.origin_entry = self.create_entry("Origin:", 6)
+        self.noofpieces_entry = self.create_entry("Total No. Of Pcs:", 2)
+        self.productname_entry = self.create_entry("Product Name:", 3)
+        self.weight_entry = self.create_entry("Weight:", 4)
+        self.hawbno_entry = self.create_entry("HAWB No:", 5)
+        self.handling_entry = self.create_entry("Handling in for:", 6)
+        self.nolabel_entry = self.create_entry("No of labels:", 7)
         
         # Print button
-        self.print_button = tk.Button(root, text="Generate PDF Invoice", command=self.generate_pdf_invoice)
+        self.print_button = tk.Button(root, text="Generate PDF Label", command=self.generate_pdf_label)
         self.print_button.pack(pady=20)
         
-        # Invoice display
-        self.invoice_text = tk.Text(root, height=15, width=50)
-        self.invoice_text.pack(padx=10, pady=10)
+        # Label display
+        self.label_text = tk.Text(root, height=15, width=50)
+        self.label_text.pack(padx=10, pady=10)
         
     def create_entry(self, label_text, row):
         label = tk.Label(self.details_frame, text=label_text)
@@ -39,67 +41,81 @@ class InvoiceApp:
         entry.grid(row=row, column=1, padx=5, pady=5)
         return entry
         
-    def generate_pdf_invoice(self):
+    def generate_pdf_label(self):
         try:
             # Retrieve data
             airwaybillno = self.airwaybillno_entry.get()
             destination = self.destination_entry.get()
             noofpieces = self.noofpieces_entry.get()
-            weight = float(self.weight_entry.get())
+            productname = self.productname_entry.get()
+            weight = self.weight_entry.get()
             hawbno = self.hawbno_entry.get()
-            productcode = self.productcode_entry.get()
-            origin = self.origin_entry.get()
+            handling = self.handling_entry.get()
+            Nooflabel = self.nolabel_entry.get()
 
             # Generate label text
-            invoice_text = (
-                f"Invoice\n"
-                f"Airway Bill No: {airwaybillno}\n"
+            label_text = (
+                f"Air Waybill No: {airwaybillno}\n"
                 f"Destination: {destination}\n"
-                f"No.of Pieces: {noofpieces}\n"
-                f"Weight: {weight:.2f}\n"
+                f"Total No. Of Pcs: {noofpieces}\n"
+                f"Product Name: {productname}\n"
+                f"Weight: {weight}\n"
+                f"Handling in for: {handling}\n"
                 f"HAWB No: {hawbno}\n"
-                f"Product Code: {productcode}\n"
-                f"Origin: {origin}\n"
             )
 
-            # Display invoice in the text widget
-            self.invoice_text.delete('1.0', tk.END)
-            self.invoice_text.insert(tk.END, invoice_text)
+            # Display label in the text widget
+            self.label_text.delete('1.0', tk.END)
+            self.label_text.insert(tk.END, label_text)
 
             # Generate PDF
-            pdf_filename = "invoice.pdf"
-            self.create_pdf_invoice(airwaybillno, destination, noofpieces, weight, hawbno, productcode, origin, pdf_filename)
+            pdf_filename = "label.pdf"
+            self.create_pdf_label(airwaybillno, destination, noofpieces, productname, weight, hawbno, handling, pdf_filename,Nooflabel)
 
-            messagebox.showinfo("Success", f"Invoice generated and saved as {pdf_filename}")
+            messagebox.showinfo("Success", f"Label generated and saved as {pdf_filename}")
         except ValueError as e:
             messagebox.showerror("Error", f"Invalid input: {e}")
         
-    def create_pdf_invoice(self, airwaybillno, destination, noofpieces, weight, hawbno, productcode, origin, filename):
-        # Register the custom font if needed (Ensure you have the font file)
+    def create_pdf_label(self, airwaybillno, destination, noofpieces, productname, weight, hawbno, handling, filename, Nooflabel):
         pdfmetrics.registerFont(TTFont('CustomFont', 'IDAutomationHC39M.ttf'))
-
         c = canvas.Canvas(filename, pagesize=letter)
         width, height = letter
 
-        # Set font and color for the title
-        c.setFont("Helvetica-Bold", 24)
-        c.setFillColor(colors.darkblue)
-        c.drawString(100, height - 100, "Invoice")
+        pagecount= 1
 
-        # Set font and color for the body text
-        c.setFont("Helvetica", 12)
+        number_str = str(pagecount).zfill(5)
+
+        # Draw the border
+        c.rect(0.5 * inch, height - 3.5 * inch, 3.5 * inch, 3 * inch)
+
+        # Draw the text
+        c.setFont("CustomFont", 18)
         c.setFillColor(colors.black)
-        c.drawString(100, height - 150, f"Airway Bill No: {airwaybillno}")
-        c.drawString(100, height - 200, f"Destination: {destination}")
-        c.drawString(100, height - 250, f"No. of Pieces: {noofpieces}")
-        c.drawString(100, height - 300, f"Weight: {weight:.2f}")
-        c.drawString(100, height - 350, f"HAWB No: {hawbno}")
-        c.drawString(100, height - 400, f"Product Code: {productcode}")
-        c.drawString(100, height - 450, f"Origin: {origin}")
+      
+        c.drawString(0.75 * inch, height - 1.5 * inch, f"{airwaybillno+number_str}")
+         # Set font and color for the title
+        c.setFont("Helvetica-Bold", 12)
+        c.setFillColor(colors.black)
+        c.drawString(0.75 * inch, height - 2.0 * inch, f"Air Waybill No: {airwaybillno}")
+        c.drawString(0.75 * inch, height - 2.5 * inch, f"Destination: {destination}")
+        c.drawString(0.75 * inch, height - 3.0 * inch, f"Total No. Of Pcs: {noofpieces}")
+        c.drawString(0.75 * inch, height - 3.5 * inch, f"Product Name: {productname}")
+        c.drawString(0.75 * inch, height - 4.0 * inch, f"Weight: {weight}")
+        c.drawString(0.75 * inch, height - 4.5 * inch, f"Handling in for: {handling}")
+        c.drawString(0.75 * inch, height - 5.0 * inch, f"HAWB No: {hawbno}")
 
         c.save()
 
 if __name__ == "__main__":
     root = tk.Tk()
-    app = InvoiceApp(root)
+    app = LabelGeneratorApp(root)
     root.mainloop()
+
+
+
+
+
+
+
+
+
