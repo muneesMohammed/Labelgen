@@ -95,8 +95,8 @@ class LabelGeneratorApp:
             c.setLineWidth(1)
             c.setStrokeColor(colors.black)
             c.line(x_position, y_position - 1.6 * inch , x_position + label_width, y_position - 1.6 * inch)
-
-    
+            c.line(x_position, y_position - 2.3 * inch , x_position + label_width, y_position - 2.3 * inch)
+            c.line(x_position, y_position - 3.0 * inch , x_position + label_width, y_position - 3.0 * inch)
             # Insert hyphen after the first 3 digits
             HifenAirwaybillno = airwaybillno[:3] + '-' + airwaybillno[3:]
             # Draw the text
@@ -114,16 +114,17 @@ class LabelGeneratorApp:
             c.setFont("Helvetica", 12)
             c.setFillColor(colors.black)
             c.drawString(x_position + 1.25 * inch, y_position - 1.5 * inch, f"{airwaybillno+padded_num}")
-            c.drawString(x_position + 0.25 * inch, y_position - 1.9 * inch, f"Air Waybill No.")
+            c.drawString(x_position + 0.25 * inch, y_position - 1.8 * inch, f"Air Waybill No.")
             c.setFont("Helvetica-Bold", 32)
             c.setFillColor(colors.black)
-            c.drawString(x_position + 0.25 * inch, y_position - 2.5 * inch, f"{HifenAirwaybillno}")
+            c.drawString(x_position + 0.50 * inch, y_position - 2.2 * inch, f"{HifenAirwaybillno}")
             c.setFont("Helvetica", 12)
             c.setFillColor(colors.black)
-            c.drawString(x_position + 0.25 * inch, y_position - 3.0 * inch, f"Destination")
-            c.drawString(x_position + 0.25 * inch, y_position - 3.5 * inch, f"{destination}")
-            c.drawString(x_position + 0.25 * inch, y_position - 4.0 * inch, f"Total No. Of Pcs")
-            c.drawString(x_position + 0.25 * inch, y_position - 4.5 * inch, f"{noofpieces}")
+            
+            c.drawString(x_position + 0.25 * inch, y_position - 2.5 * inch, f"Destination")
+            c.drawString(x_position + 0.25 * inch, y_position - 2.8 * inch, f"{destination}")
+            c.drawString(x_position + 2.0 * inch, y_position - 2.5 * inch, f"Total No. Of Pcs")
+            c.drawString(x_position + 2.25 * inch, y_position - 2.8 * inch, f"{noofpieces}")
             c.drawString(x_position + 0.25 * inch, y_position - 5.0 * inch, f"Product Name")
             c.drawString(x_position + 0.25 * inch, y_position - 5.5 * inch, f"{productname}")
             c.drawString(x_position + 0.25 * inch, y_position - 6.0 * inch, f"Weight")
