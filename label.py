@@ -51,7 +51,7 @@ class LabelGeneratorApp:
             weight = self.weight_entry.get()
             hawbno = self.hawbno_entry.get()
             handling = self.handling_entry.get()
-            Nooflabel = self.nolabel_entry.get()
+            Nooflabel = int(self.nolabel_entry.get())
 
             # Generate label text
             label_text = (
@@ -69,40 +69,72 @@ class LabelGeneratorApp:
             self.label_text.insert(tk.END, label_text)
 
             # Generate PDF
-            pdf_filename = "label.pdf"
-            self.create_pdf_label(airwaybillno, destination, noofpieces, productname, weight, hawbno, handling, pdf_filename,Nooflabel)
+            pdf_filename = "labels.pdf"
+            self.create_pdf_label(airwaybillno, destination, noofpieces, productname, weight, hawbno, handling, pdf_filename, Nooflabel)
 
-            messagebox.showinfo("Success", f"Label generated and saved as {pdf_filename}")
+            messagebox.showinfo("Success", f"Labels generated and saved as {pdf_filename}")
         except ValueError as e:
             messagebox.showerror("Error", f"Invalid input: {e}")
         
     def create_pdf_label(self, airwaybillno, destination, noofpieces, productname, weight, hawbno, handling, filename, Nooflabel):
-        pdfmetrics.registerFont(TTFont('CustomFont', 'IDAutomationHC39M.ttf'))
+        pdfmetrics.registerFont(TTFont('CustomFont', 'code128.ttf'))
         c = canvas.Canvas(filename, pagesize=letter)
         width, height = letter
 
-        pagecount= 1
+        labels_per_page = 1  # Number of labels per page
+        label_height = 6 * inch
+        label_width = 4 * inch
+        x_margin = 0.5 * inch
+        y_margin = height - 0.5 * inch
 
-        number_str = str(pagecount).zfill(5)
+        for i in range(Nooflabel):
+            x_position = x_margin
+            y_position = y_margin - ((i % labels_per_page) * (label_height + 0.25 * inch))
 
-        # Draw the border
-        c.rect(0.5 * inch, height - 3.5 * inch, 3.5 * inch, 3 * inch)
+            # Draw a line
+            c.setLineWidth(1)
+            c.setStrokeColor(colors.black)
+            c.line(x_position, y_position - 1.6 * inch , x_position + label_width, y_position - 1.6 * inch)
 
-        # Draw the text
-        c.setFont("CustomFont", 18)
-        c.setFillColor(colors.black)
-      
-        c.drawString(0.75 * inch, height - 1.5 * inch, f"{airwaybillno+number_str}")
-         # Set font and color for the title
-        c.setFont("Helvetica-Bold", 12)
-        c.setFillColor(colors.black)
-        c.drawString(0.75 * inch, height - 2.0 * inch, f"Air Waybill No: {airwaybillno}")
-        c.drawString(0.75 * inch, height - 2.5 * inch, f"Destination: {destination}")
-        c.drawString(0.75 * inch, height - 3.0 * inch, f"Total No. Of Pcs: {noofpieces}")
-        c.drawString(0.75 * inch, height - 3.5 * inch, f"Product Name: {productname}")
-        c.drawString(0.75 * inch, height - 4.0 * inch, f"Weight: {weight}")
-        c.drawString(0.75 * inch, height - 4.5 * inch, f"Handling in for: {handling}")
-        c.drawString(0.75 * inch, height - 5.0 * inch, f"HAWB No: {hawbno}")
+    
+            # Insert hyphen after the first 3 digits
+            HifenAirwaybillno = airwaybillno[:3] + '-' + airwaybillno[3:]
+            # Draw the text
+            num = i+1
+            padded_num = str(num).rjust(5, '0')
+            # Draw the text
+            c.setFont("CustomFont", 60)
+            c.setFillColor(colors.black)
+            c.drawString(x_position + 0.15 * inch, y_position - 1.25 * inch, f"{airwaybillno+padded_num}")
+
+            c.setFont("Helvetica", 12)
+            c.setFillColor(colors.black)
+
+            # Set font and color for the title
+            c.setFont("Helvetica", 12)
+            c.setFillColor(colors.black)
+            c.drawString(x_position + 1.25 * inch, y_position - 1.5 * inch, f"{airwaybillno+padded_num}")
+            c.drawString(x_position + 0.25 * inch, y_position - 1.9 * inch, f"Air Waybill No.")
+            c.setFont("Helvetica-Bold", 32)
+            c.setFillColor(colors.black)
+            c.drawString(x_position + 0.25 * inch, y_position - 2.5 * inch, f"{HifenAirwaybillno}")
+            c.setFont("Helvetica", 12)
+            c.setFillColor(colors.black)
+            c.drawString(x_position + 0.25 * inch, y_position - 3.0 * inch, f"Destination")
+            c.drawString(x_position + 0.25 * inch, y_position - 3.5 * inch, f"{destination}")
+            c.drawString(x_position + 0.25 * inch, y_position - 4.0 * inch, f"Total No. Of Pcs")
+            c.drawString(x_position + 0.25 * inch, y_position - 4.5 * inch, f"{noofpieces}")
+            c.drawString(x_position + 0.25 * inch, y_position - 5.0 * inch, f"Product Name")
+            c.drawString(x_position + 0.25 * inch, y_position - 5.5 * inch, f"{productname}")
+            c.drawString(x_position + 0.25 * inch, y_position - 6.0 * inch, f"Weight")
+            c.drawString(x_position + 0.25 * inch, y_position - 6.5 * inch, f"{weight}")
+            c.drawString(x_position + 0.25 * inch, y_position - 7.0 * inch, f"Handling in for")
+            c.drawString(x_position + 0.25 * inch, y_position - 7.5 * inch, f"{handling}")
+            c.drawString(x_position + 0.25 * inch, y_position - 8.0 * inch, f"HAWB No.")
+            c.drawString(x_position + 0.25 * inch, y_position - 8.5 * inch, f"{hawbno}")
+
+            if (i + 1) % labels_per_page == 0 and i != Nooflabel - 1:
+                c.showPage()  # Create a new page for the next labels
 
         c.save()
 
@@ -110,12 +142,3 @@ if __name__ == "__main__":
     root = tk.Tk()
     app = LabelGeneratorApp(root)
     root.mainloop()
-
-
-
-
-
-
-
-
-
