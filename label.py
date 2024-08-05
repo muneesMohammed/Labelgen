@@ -4,13 +4,19 @@ from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from reportlab.lib.units import inch
 from reportlab.lib import colors
-from reportlab.pdfbase.ttfonts import TTFont
-from reportlab.pdfbase import pdfmetrics
+from reportlab.graphics.barcode import code128
+from reportlab.graphics import renderPDF
 
 class LabelGeneratorApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Label Generator")
+         # Set icon (ensure the path is correct)
+        try:
+            self.root.iconbitmap("labelicon.ico")
+        except tk.TclError:
+            print("Icon file not found or invalid format")
+        
         
         # label details
         self.details_frame = tk.Frame(root)
@@ -53,6 +59,11 @@ class LabelGeneratorApp:
             handling = self.handling_entry.get()
             Nooflabel = int(self.nolabel_entry.get())
 
+            # Check if the number of labels is less than 3000
+            if Nooflabel >= 100000:
+                messagebox.showerror("Error", "The number of labels should be less than 100000")
+                return
+
             # Generate label text
             label_text = (
                 f"Air Waybill No: {airwaybillno}\n"
@@ -77,7 +88,6 @@ class LabelGeneratorApp:
             messagebox.showerror("Error", f"Invalid input: {e}")
         
     def create_pdf_label(self, airwaybillno, destination, noofpieces, productname, weight, hawbno, handling, filename, Nooflabel):
-        pdfmetrics.registerFont(TTFont('CustomFont', 'code128.ttf'))
         c = canvas.Canvas(filename, pagesize=letter)
         width, height = letter
 
@@ -104,11 +114,10 @@ class LabelGeneratorApp:
             # Draw the text
             num = i+1
             padded_num = str(num).rjust(5, '0')
-            # Draw the text
-            c.setFont("CustomFont", 110)
-            c.setFillColor(colors.black)
-            c.drawString(x_position + 0.15 * inch, y_position - 2.25 * inch, f"{airwaybillno+padded_num}")
-
+            
+            # Draw the barcode
+            barcode = code128.Code128(f"{airwaybillno+padded_num}", barHeight=1.32 * inch, barWidth=0.045 * inch)
+            barcode.drawOn(c, x_position + 0.15 * inch, y_position - 2.25 * inch)
 
             # Set font and color for the title
             c.setFont("Helvetica-Bold", 25)
