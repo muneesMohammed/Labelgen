@@ -2,6 +2,7 @@ import os
 import sys
 import json
 import shutil
+import ctypes
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 from reportlab.lib.pagesizes import letter
@@ -14,6 +15,15 @@ try:
     from svglib.svglib import svg2rlg
 except ImportError:
     svg2rlg = None
+    print("svglib not installed: SVG logo rendering will be disabled")
+try:
+    import win32api
+    import win32con
+    import win32print
+except Exception:
+    win32api = None
+    win32con = None
+    win32print = None
 
 class LabelGeneratorApp:
     def __init__(self, root):
@@ -24,9 +34,13 @@ class LabelGeneratorApp:
         
         # Determine the directory where the app is running
         if getattr(sys, 'frozen', False):
-            self.base_dir = os.path.dirname(sys.executable)
+            self.base_dir = getattr(sys, '_MEIPASS', os.path.dirname(sys.executable))
         else:
             self.base_dir = os.path.dirname(os.path.abspath(__file__))
+
+        # Use a user-writable directory for data files to avoid permission issues
+        self.user_data_dir = os.path.join(os.environ.get("APPDATA", os.path.expanduser("~")), "LabelGeneratorPro")
+        os.makedirs(self.user_data_dir, exist_ok=True)
 
         # Set icon (ensure the path is correct)
         try:
@@ -79,6 +93,8 @@ class LabelGeneratorApp:
         ttk.Label(self.save_frame, text="Save Location:", font=("Segoe UI", 12)).pack(side=tk.LEFT, padx=(5, 10))
         
         default_save_dir = os.path.join(os.path.expanduser("~"), "Documents")
+        if not os.path.isdir(default_save_dir) or not os.access(default_save_dir, os.W_OK):
+            default_save_dir = self.user_data_dir
         self.save_dir_var = tk.StringVar(value=default_save_dir)
         self.save_entry = ttk.Entry(self.save_frame, textvariable=self.save_dir_var, font=("Segoe UI", 10), state='readonly')
         self.save_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10))
@@ -117,17 +133,44 @@ class LabelGeneratorApp:
         self.add_logo_btn = ttk.Button(self.buttons_frame, text="Add Airline Logo", command=self.add_logo_dialog)
         self.add_logo_btn.grid(row=1, column=1, columnspan=2, pady=(15, 0))
 
-        self.prefix_map_file = os.path.join(self.base_dir, "prefix_map.json")
+        self.prefix_map_file = os.path.join(self.user_data_dir, "prefix_map.json")
         self.load_prefix_map()
+
+        # Load user settings (printer preference etc.)
+        self.settings_file = os.path.join(self.user_data_dir, "settings.json")
+        self.load_settings()
+
+        # Printer selection (label printer)
+        def printers_list():
+            return self.get_installed_printers()
+
+        ttk.Label(self.buttons_frame, text="Label Printer:").grid(row=2, column=0, pady=(10, 0), sticky='e')
+        self.printer_var = tk.StringVar()
+        self.printer_combo = ttk.Combobox(self.buttons_frame, textvariable=self.printer_var, state='readonly', width=36)
+        if not win32api or not win32print:
+            self.printer_combo['values'] = ["Install pywin32 to enable printer selection"]
+            self.printer_var.set("Install pywin32 to enable printer selection")
+            self.printer_combo.state(["disabled"])
+        else:
+            installed = printers_list()
+            self.printer_combo['values'] = installed
+            if self.settings.get('printer') in installed:
+                self.printer_var.set(self.settings.get('printer'))
+            elif installed:
+                # don't auto-select; let user choose. keep blank.
+                pass
+        self.printer_combo.grid(row=2, column=1, columnspan=2, pady=(10, 0), sticky='w')
+        self.printer_combo.bind('<<ComboboxSelected>>', lambda e: self.save_settings())
         
     def load_prefix_map(self):  
         default_map = {
-            "176": "EK", "157": "QR", "607": "EY", "695": "SV", "724": "WY", "229": "KU", "065": "GF",
+            "176": "EK", "157": "QR", "607": "EY", "695": "SV", "724": "WY", "229": "KU",
             "098": "AI", "312": "6E", "705": "UK", "689": "SG", "220": "LH", "057": "KL", "074": "AF",
             "125": "BA", "064": "LX", "081": "OS", "201": "AZ", "006": "DL", "001": "AA", "016": "UA",
             "005": "CO", "403": "FX", "023": "UPS", "160": "CX", "180": "MH", "784": "TG", "999": "CA",
             "083": "ET", "071": "MS", "131": "QF", "160": "JL", "160": "KE", "160": "OZ", "784": "MU",
-            "784": "CZ", "083": "AT", "695": "NZ", "724": "TK", "141": "FZ", "077": "MS"
+            "784": "CZ", "083": "AT", "695": "NZ", "724": "TK", "141": "FZ", "077": "MS", "997": "BG", "512": "RJ",
+            "065": "SV"
         }
         if os.path.exists(self.prefix_map_file):
             try:
@@ -142,6 +185,81 @@ class LabelGeneratorApp:
                     json.dump(self.awb_prefix_map, f, indent=4)
             except Exception:
                 pass
+
+    def load_settings(self):
+        self.settings = {}
+        try:
+            if os.path.exists(self.settings_file):
+                with open(self.settings_file, 'r') as f:
+                    self.settings = json.load(f)
+        except Exception:
+            self.settings = {}
+
+    def save_settings(self):
+        try:
+            # persist selected printer
+            if not hasattr(self, 'settings'):
+                self.settings = {}
+            self.settings['printer'] = self.printer_var.get()
+            with open(self.settings_file, 'w') as f:
+                json.dump(self.settings, f, indent=4)
+        except Exception:
+            pass
+
+    def has_pdf_print_association(self):
+        try:
+            shell32 = ctypes.windll.shell32
+            ASSOCF_NONE = 0
+            ASSOCSTR_COMMAND = 1
+            # query required buffer length
+            length = ctypes.c_uint(0)
+            result = shell32.AssocQueryStringW(ASSOCF_NONE, ASSOCSTR_COMMAND, ".pdf", "print", None, ctypes.byref(length))
+            if result != 1:
+                return False
+            buffer = ctypes.create_unicode_buffer(length.value)
+            result = shell32.AssocQueryStringW(ASSOCF_NONE, ASSOCSTR_COMMAND, ".pdf", "print", buffer, ctypes.byref(length))
+            return result == 0 and bool(buffer.value.strip())
+        except Exception:
+            return False
+
+    def get_installed_printers(self):
+        printers = []
+        if win32print:
+            try:
+                flags = win32print.PRINTER_ENUM_LOCAL | win32print.PRINTER_ENUM_CONNECTIONS
+                for p in win32print.EnumPrinters(flags):
+                    # p is a tuple; name usually at index 2
+                    try:
+                        printers.append(p[2])
+                    except Exception:
+                        continue
+            except Exception:
+                pass
+        return printers
+
+    def raw_print_pdf_to_printer(self, printer_name, filename):
+        if not win32print:
+            return False
+        try:
+            hprinter = win32print.OpenPrinter(printer_name)
+        except Exception:
+            return False
+        try:
+            doc_info = ("LabelGeneratorPro", None, "RAW")
+            try:
+                job = win32print.StartDocPrinter(hprinter, 1, doc_info)
+                try:
+                    win32print.StartPagePrinter(hprinter)
+                    with open(filename, 'rb') as f:
+                        win32print.WritePrinter(hprinter, f.read())
+                    win32print.EndPagePrinter(hprinter)
+                finally:
+                    win32print.EndDocPrinter(hprinter)
+            except Exception:
+                return False
+        finally:
+            win32print.ClosePrinter(hprinter)
+        return True
 
     def add_logo_dialog(self):
         dialog = tk.Toplevel(self.root)
@@ -187,7 +305,7 @@ class LabelGeneratorApp:
                 self.show_toast("Please fill all fields and select a logo", is_error=True)
                 return
                 
-            logo_dir = os.path.join(self.base_dir, "logos")
+            logo_dir = os.path.join(self.user_data_dir, "logos")
             os.makedirs(logo_dir, exist_ok=True)
             
             ext = os.path.splitext(path)[1].lower()
@@ -205,6 +323,17 @@ class LabelGeneratorApp:
 
         ttk.Button(dialog, text="Save Prefix & Logo", style="Primary.TButton", command=save_new_logo).grid(row=3, column=0, columnspan=2, pady=20)
         
+    def set_pdf_action_buttons_enabled(self, enabled: bool):
+        if enabled and self.last_generated_pdf and os.path.exists(self.last_generated_pdf):
+            self.open_button.state(["!disabled"])
+            self.print_sys_button.state(["!disabled"])
+        else:
+            self.open_button.state(["disabled"])
+            self.print_sys_button.state(["disabled"])
+
+    def on_entry_focus_out(self, event=None):
+        self.set_pdf_action_buttons_enabled(True)
+
     def create_entry(self, label_text, row):
         label = ttk.Label(self.details_frame, text=label_text)
         label.grid(row=row, column=0, padx=15, pady=8, sticky='e')
@@ -220,6 +349,8 @@ class LabelGeneratorApp:
         
         entry = ttk.Entry(self.details_frame, width=40, font=("Segoe UI", 12, "bold"), textvariable=var)
         entry.grid(row=row, column=1, padx=15, pady=8, sticky='w')
+        entry.bind("<FocusIn>", lambda event: self.set_pdf_action_buttons_enabled(False))
+        entry.bind("<FocusOut>", self.on_entry_focus_out)
         return entry
 
     def browse_save_location(self):
@@ -263,9 +394,57 @@ class LabelGeneratorApp:
     def print_pdf(self):
         if self.last_generated_pdf and os.path.exists(self.last_generated_pdf):
             try:
-                os.startfile(self.last_generated_pdf, "print")
+                selected_printer = ""
+                if win32print:
+                    selected_printer = getattr(self, 'printer_var', None) and self.printer_var.get().strip()
+                if selected_printer:
+                    if selected_printer not in self.get_installed_printers():
+                        self.show_toast(f"Selected printer '{selected_printer}' is not installed.", is_error=True)
+                        return
+                    if self.raw_print_pdf_to_printer(selected_printer, self.last_generated_pdf):
+                        return
+                    if not self.has_pdf_print_association():
+                        self.show_toast(
+                            "Could not send PDF directly to the printer and no PDF print association is available. "
+                            "To fix it, right-click any .pdf file, choose 'Open with' > 'Choose another app', select your PDF viewer, check 'Always use this app', and click OK.",
+                            is_error=True
+                        )
+                        return
+                    original_printer = None
+                    try:
+                        try:
+                            original_printer = win32print.GetDefaultPrinter()
+                        except Exception:
+                            original_printer = None
+                        win32print.SetDefaultPrinter(selected_printer)
+                        result = win32api.ShellExecute(0, 'print', self.last_generated_pdf, None, '.', 0)
+                        if isinstance(result, int) and result <= 32:
+                            raise OSError(f"ShellExecute returned {result}")
+                    finally:
+                        if original_printer:
+                            try:
+                                win32print.SetDefaultPrinter(original_printer)
+                            except Exception:
+                                pass
+                    return
+
+                if not self.has_pdf_print_association():
+                    self.show_toast(
+                        "No PDF print association. To fix it, right-click any .pdf file, choose 'Open with' > "
+                        "'Choose another app', select your PDF viewer, check 'Always use this app', and click OK.",
+                        is_error=True
+                    )
+                    return
+
+                # Fallback: print to default printer
+                result = win32api.ShellExecute(0, 'print', self.last_generated_pdf, None, '.', 0)
+                if isinstance(result, int) and result <= 32:
+                    raise OSError(f"ShellExecute returned {result}")
             except Exception as e:
-                self.show_toast(f"Could not print PDF: {e}", is_error=True)
+                self.show_toast(
+                    f"Could not print PDF: {e}. If your system has no PDF print association, set .pdf to open with a PDF viewer as described in the help text.",
+                    is_error=True
+                )
         
     def generate_pdf_label(self):
         try:
@@ -279,7 +458,9 @@ class LabelGeneratorApp:
             handling = self.handling_entry.get()
             Nooflabel = int(self.nolabel_entry.get())
 
-            # Check if the number of labels is less than 3000
+            if Nooflabel <= 0:
+                self.show_toast("The number of labels must be at least 1", is_error=True)
+                return
             if Nooflabel >= 100000:
                 self.show_toast("The number of labels should be less than 100000", is_error=True)
                 return
@@ -301,14 +482,42 @@ class LabelGeneratorApp:
 
             # Generate PDF
             save_dir = self.save_dir_var.get()
-            if not os.path.exists(save_dir):
-                os.makedirs(save_dir, exist_ok=True)
-            
-            pdf_filename = os.path.join(save_dir, "labels.pdf")
+            actual_save_dir = save_dir
+            try:
+                if not os.path.exists(actual_save_dir):
+                    os.makedirs(actual_save_dir, exist_ok=True)
+                elif not os.access(actual_save_dir, os.W_OK):
+                    raise PermissionError(f"No write access to {actual_save_dir}")
+            except Exception:
+                actual_save_dir = self.user_data_dir
+                try:
+                    os.makedirs(actual_save_dir, exist_ok=True)
+                except Exception as e:
+                    self.show_toast(f"Could not create save folder: {e}", is_error=True)
+                    return
+                self.show_toast("Save location permission denied. Using user data folder instead.")
+
+            pdf_filename = os.path.join(actual_save_dir, "labels.pdf")
             disable_logo = self.disable_logo_var.get()
-            self.create_pdf_label(airwaybillno, destination, noofpieces, productname, weight, hawbno, handling, pdf_filename, Nooflabel, disable_logo)
+            saved_path = pdf_filename
+            try:
+                self.create_pdf_label(airwaybillno, destination, noofpieces, productname, weight, hawbno, handling, pdf_filename, Nooflabel, disable_logo)
+            except PermissionError:
+                fallback_dir = self.user_data_dir
+                try:
+                    os.makedirs(fallback_dir, exist_ok=True)
+                    fallback_filename = os.path.join(fallback_dir, "labels.pdf")
+                    self.create_pdf_label(airwaybillno, destination, noofpieces, productname, weight, hawbno, handling, fallback_filename, Nooflabel, disable_logo)
+                    saved_path = fallback_filename
+                    self.show_toast("Could not save to the selected folder. Saved to user data folder instead.")
+                except Exception as e:
+                    self.show_toast(f"Could not save PDF: {e}", is_error=True)
+                    return
+            except Exception as e:
+                self.show_toast(f"Could not create PDF: {e}", is_error=True)
+                return
             
-            self.last_generated_pdf = os.path.abspath(pdf_filename)
+            self.last_generated_pdf = os.path.abspath(saved_path)
             self.open_button.state(["!disabled"])
             self.print_sys_button.state(["!disabled"])
 
@@ -336,31 +545,32 @@ class LabelGeneratorApp:
             
             y_shift = -1.2 * inch if not disable_logo else 0
             if airline_code:
-                logo_dir = os.path.join(self.base_dir, "logos")
-                svg_path = os.path.join(logo_dir, f"{airline_code}.svg")
-                png_path = os.path.join(logo_dir, f"{airline_code}.png")
-                
+                logo_paths = []
+                for base_logo_dir in (os.path.join(self.user_data_dir, "logos"), os.path.join(self.base_dir, "logos")):
+                    logo_paths.append((os.path.join(base_logo_dir, f"{airline_code}.svg"), os.path.join(base_logo_dir, f"{airline_code}.png")))
+
                 logo_width = 3.0 * inch
                 logo_height = 1.2 * inch
                 logo_y = y_position - 0.9 * inch
-                
-                if os.path.exists(svg_path) and svg2rlg:
-                    drawing = svg2rlg(svg_path)
-                    if drawing:
-                        scale_x = logo_width / drawing.width
-                        scale_y = logo_height / drawing.height
-                        scale = min(scale_x, scale_y)
-                        drawing.width = drawing.width * scale
-                        drawing.height = drawing.height * scale
-                        drawing.scale(scale, scale)
-                        
-                        # Center the scaled logo
-                        render_x = x_position + (label_width - drawing.width) / 2
-                        renderPDF.draw(drawing, c, render_x, logo_y)
-                elif os.path.exists(png_path):
-                    # For png, we might not have a clean width query, so we anchor center
-                    logo_x = x_position + label_width / 2
-                    c.drawImage(png_path, logo_x, logo_y, width=logo_width, height=logo_height, preserveAspectRatio=True, anchor='c')
+
+                for svg_path, png_path in logo_paths:
+                    if os.path.exists(svg_path) and svg2rlg:
+                        drawing = svg2rlg(svg_path)
+                        if drawing:
+                            scale_x = logo_width / drawing.width
+                            scale_y = logo_height / drawing.height
+                            scale = min(scale_x, scale_y)
+                            drawing.width = drawing.width * scale
+                            drawing.height = drawing.height * scale
+                            drawing.scale(scale, scale)
+
+                            render_x = x_position + (label_width - drawing.width) / 2
+                            renderPDF.draw(drawing, c, render_x, logo_y)
+                            break
+                    elif os.path.exists(png_path):
+                        logo_x = x_position + label_width / 2
+                        c.drawImage(png_path, logo_x, logo_y, width=logo_width, height=logo_height, preserveAspectRatio=True, anchor='c')
+                        break
 
             c.saveState()
             c.translate(0, y_shift)
